@@ -81,11 +81,11 @@ if(NOT CMAKE_SCRIPT_MODE_FILE)
             -Xcc -isystem -Xcc ${RISCV_TOOLCHAIN_ROOT}/riscv32-esp-elf/include
             -Xcc -isystem -Xcc ${RISCV_TOOLCHAIN_ROOT}/riscv32-esp-elf/sys-include
             -Xcc -isystem -Xcc ${CMAKE_CURRENT_SOURCE_DIR}
-            -import-bridging-header ${CMAKE_CURRENT_SOURCE_DIR}/BridgingHeader.h
+            -import-bridging-header ${CMAKE_CURRENT_SOURCE_DIR}/ESPIDFShim.h
             ${SWIFT_FLAGS}
             -c ${SWIFT_SOURCES}
             -o ${SWIFT_OBJECT_FILE}
-        DEPENDS ${SWIFT_SOURCES} BridgingHeader.h
+        DEPENDS ${SWIFT_SOURCES} ESPIDFShim.h
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     )
 
@@ -95,7 +95,7 @@ endif()
 # Register component with the compiled Swift object file
 idf_component_register(
     SRCS ${SWIFT_OBJECT_FILE} "ESPIDFShim.c"
-    PRIV_REQUIRES nvs_flash esp_event esp_netif esp_wifi driver esp_timer esp_driver_usb_serial_jtag # just examples
+    PRIV_REQUIRES esp_driver_i2s
     INCLUDE_DIRS "."
     LDFRAGMENTS "swift_sections.lf"
 )
