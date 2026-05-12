@@ -11,6 +11,24 @@
 static i2s_chan_handle_t tx_handle = NULL;
 static uint32_t          s_sample_rate = 44100;
 
+static inline int16_t float_to_pcm16(float sample) {
+    if (sample > 1.0f) sample = 1.0f;
+    if (sample < -1.0f) sample = -1.0f;
+    return (int16_t)(sample * 32767.0f);
+}
+
+static inline float cosine_ramp_in(uint32_t idx, uint32_t len) {
+    if (len <= 1U) return 1.0f;
+    const float t = (float)idx / (float)(len - 1U);
+    return 0.5f - 0.5f * cosf(3.14159265358979323846f * t);
+}
+
+static inline float cosine_ramp_out(uint32_t idx_from_end, uint32_t len) {
+    if (len <= 1U) return 0.0f;
+    const float t = (float)idx_from_end / (float)(len - 1U);
+    return 0.5f - 0.5f * cosf(3.14159265358979323846f * t);
+}
+
 bool i2s_hw_init(uint32_t sample_rate) {
     s_sample_rate = sample_rate;
 
@@ -46,44 +64,71 @@ void i2s_hw_deinit(void) {
 
 bool i2s_hw_play_tone(uint32_t frequency_hz, uint32_t duration_ms, float gain) {
     if (tx_handle == NULL) return false;
+    if (duration_ms == 0U) return true;
 
-    int16_t *buf = malloc(SAMPLES * CHANNELS * sizeof(int16_t));
-    if (buf == NULL) return false;
+    int16_t *out = malloc(SAMPLES * CHANNELS * sizeof(int16_t));
+    if (out == NULL) return false;
 
     const float two_pi = 6.28318530717958647692f;
-    const float amplitude = fmaxf(0.0f, fminf(gain, 1.0f)) * 30000.0f;
+    const float voice_gain = fmaxf(0.0f, fminf(gain, 1.0f)) * 0.6f;
     const float step = two_pi * (float)frequency_hz / (float)s_sample_rate;
     const uint32_t total_frames = (s_sample_rate * duration_ms) / 1000;
+    uint32_t attack_samples = ((s_sample_rate * 8U) / 1000U) + 1U;
+    uint32_t release_samples = ((s_sample_rate * 24U) / 1000U) + 1U;
+    if (attack_samples + release_samples >= total_frames) {
+        attack_samples = (total_frames / 4U) + 1U;
+        release_samples = (total_frames / 4U) + 1U;
+    }
 
     float phase = 0.0f;
+    float mix_bus[SAMPLES];
     uint32_t remaining_frames = total_frames;
+    uint32_t rendered_frames = 0;
 
     while (remaining_frames > 0) {
         uint32_t frames = remaining_frames;
         if (frames > SAMPLES) frames = SAMPLES;
 
-        for (uint32_t i = 0; i < frames * CHANNELS; i += CHANNELS) {
-            int16_t sample = (int16_t)(sinf(phase) * amplitude);
-            buf[i] = sample;
-            buf[i + 1] = sample;
+        for (uint32_t i = 0; i < frames; i++) {
+            uint32_t frame_index = rendered_frames + i;
+
+            float env = 1.0f;
+            if (frame_index < attack_samples) {
+                env = cosine_ramp_in(frame_index, attack_samples);
+            }
+            if (total_frames > release_samples && frame_index >= (total_frames - release_samples)) {
+                uint32_t idx_from_end = (total_frames - 1U) - frame_index;
+                float rel = cosine_ramp_out(idx_from_end, release_samples);
+                if (rel < env) env = rel;
+            }
+
+            float voice = sinf(phase) * voice_gain * env;
+            mix_bus[i] = voice;
+
+            float out_sample = mix_bus[i];
+            int16_t pcm = float_to_pcm16(out_sample);
+            out[i * 2] = pcm;
+            out[i * 2 + 1] = pcm;
+
             phase += step;
             if (phase >= two_pi) phase -= two_pi;
         }
 
         size_t written;
         if (i2s_channel_write(tx_handle,
-                              buf,
+                              out,
                               frames * CHANNELS * sizeof(int16_t),
                               &written,
                               portMAX_DELAY) != ESP_OK) {
-            free(buf);
+            free(out);
             return false;
         }
 
         remaining_frames -= frames;
+        rendered_frames += frames;
     }
 
-    free(buf);
+    free(out);
     return true;
 }
 
