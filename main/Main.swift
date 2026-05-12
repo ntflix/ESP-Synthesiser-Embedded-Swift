@@ -4,7 +4,7 @@ func app_main() {
     synth.initialise()
     synth.start()
 
-    // playSomething(synth: synth)
+    playSomething(synth: synth)
 }
 
 func playSomething(synth: I2SGenerator) {
