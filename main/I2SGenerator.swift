@@ -1,30 +1,29 @@
-struct I2SConfig {
-    var sampleRate: UInt32
-    var frequencyHz: UInt32
-
-    static let `default` = I2SConfig(sampleRate: 44100, frequencyHz: 440)
-}
-
 struct I2SGenerator {
-    let config: I2SConfig
+    var sampleRate: UInt32
+    var bpm: UInt32
+    var gain: Float
 
-    init(config: I2SConfig = .default) {
-        self.config = config
+    init(sampleRate: UInt32 = 44100, bpm: UInt32 = 120, gain: Float = 1.0) {
+        self.sampleRate = sampleRate
+        self.bpm = bpm
+        self.gain = gain
     }
 
-    func initialise() -> Bool {
-        i2s_sine_init(config.sampleRate, config.frequencyHz)
+    @discardableResult
+    func initialise(gain: Float = 0.5) -> Bool {
+        self.gain = gain
+        return i2s_hw_init(sampleRate)
     }
 
-    func start() -> Bool {
-        i2s_sine_start()
-    }
+    func start() { _ = i2s_hw_start() }
 
-    func stop() -> Bool {
-        i2s_sine_stop()
-    }
+    func stop() { _ = i2s_hw_stop() }
+    func deinitialise() { i2s_hw_deinit() }
 
-    func deinitialise() {
-        i2s_sine_deinit()
+    mutating func setGain(_ gain: Float) { self.gain = gain }
+
+    func play(_ note: Note) {
+        _ = i2s_hw_play_tone(note.frequency, note.duration.milliseconds(bpm: bpm), gain)
     }
+    func play(_ notes: [Note]) { for n in notes { play(n) } }
 }
