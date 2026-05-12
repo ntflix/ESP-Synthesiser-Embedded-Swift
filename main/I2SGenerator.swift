@@ -3,15 +3,14 @@ struct I2SGenerator {
     var bpm: UInt32
     var gain: Float
 
-    init(sampleRate: UInt32 = 44100, bpm: UInt32 = 120, gain: Float = 1.0) {
+    init(sampleRate: UInt32 = 44100, bpm: UInt32 = 120, gain: Float = 0.5) {
         self.sampleRate = sampleRate
         self.bpm = bpm
         self.gain = gain
     }
 
     @discardableResult
-    func initialise(gain: Float = 0.5) -> Bool {
-        self.gain = gain
+    func initialise() -> Bool {
         return i2s_hw_init(sampleRate)
     }
 

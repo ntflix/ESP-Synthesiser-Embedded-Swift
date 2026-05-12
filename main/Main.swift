@@ -1,6 +1,6 @@
 @_cdecl("app_main")
 func app_main() {
-    var synth = I2SGenerator()
+    let synth = I2SGenerator(gain: 0.05)
     synth.initialise()
     synth.start()
 
@@ -21,7 +21,43 @@ func playSomething(synth: I2SGenerator) {
         Note(.d, octave: 5, duration: Duration(.whole)),
     ]
 
+    let bassline: [Note] = [
+        Note(.a, octave: 2, duration: Duration(.eighth)),
+        Note(.a, octave: 3, duration: Duration(.eighth)),
+        Note(.a, octave: 2, duration: Duration(.eighth)),
+        Note(.a, octave: 3, duration: Duration(.eighth)),
+        Note(.a, octave: 2, duration: Duration(.eighth)),
+        Note(.a, octave: 3, duration: Duration(.eighth)),
+        Note(.a, octave: 2, duration: Duration(.eighth)),
+        Note(.a, octave: 3, duration: Duration(.eighth)),
+        Note(.f, octave: 2, duration: Duration(.eighth)),
+        Note(.f, octave: 3, duration: Duration(.eighth)),
+        Note(.f, octave: 2, duration: Duration(.eighth)),
+        Note(.f, octave: 3, duration: Duration(.eighth)),
+        Note(.f, octave: 2, duration: Duration(.eighth)),
+        Note(.f, octave: 3, duration: Duration(.eighth)),
+        Note(.f, octave: 2, duration: Duration(.eighth)),
+        Note(.f, octave: 3, duration: Duration(.eighth)),
+        Note(.c, octave: 2, duration: Duration(.eighth)),
+        Note(.c, octave: 3, duration: Duration(.eighth)),
+        Note(.c, octave: 2, duration: Duration(.eighth)),
+        Note(.c, octave: 3, duration: Duration(.eighth)),
+        Note(.c, octave: 2, duration: Duration(.eighth)),
+        Note(.c, octave: 3, duration: Duration(.eighth)),
+        Note(.c, octave: 2, duration: Duration(.eighth)),
+        Note(.c, octave: 3, duration: Duration(.eighth)),
+        Note(.c, octave: 2, duration: Duration(.eighth)),
+        Note(.c, octave: 3, duration: Duration(.eighth)),
+        Note(.c, octave: 2, duration: Duration(.eighth)),
+        Note(.c, octave: 3, duration: Duration(.eighth)),
+        Note(.b, octave: 2, duration: Duration(.eighth)),
+        Note(.b, octave: 3, duration: Duration(.eighth)),
+        Note(.b, octave: 2, duration: Duration(.eighth)),
+        Note(.b, octave: 3, duration: Duration(.eighth)),
+    ]
+
     while true {
         synth.play(notes)
+        synth.play(bassline)
     }
 }
