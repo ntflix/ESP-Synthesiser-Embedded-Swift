@@ -32,9 +32,11 @@ struct I2SGenerator: Synthesiser {
     func playChord(_ voices: [Voice]) throws(I2SError) {
         guard !voices.isEmpty else { throw I2SError.invalidInput("No voices to play") }
 
-        let bufSize = 512
-        let buf = UnsafeMutableBufferPointer<Int16>.allocate(capacity: bufSize * 2)
-        defer { buf.deallocate() }
+        let bufSize = 256
+        let pcmBuf = UnsafeMutableBufferPointer<Int16>.allocate(capacity: bufSize * 2)
+        defer {
+            pcmBuf.deallocate()
+        }
 
         var state = voices
         for i in 0..<state.count {
@@ -48,30 +50,36 @@ struct I2SGenerator: Synthesiser {
         var remainingFrames = masterFrames
         var renderedFrames: UInt32 = 0
 
-        let voiceScale = 1.0 / Float(state.count).squareRoot()  // Prevent clipping when mixing multiple voices
+        let voiceCount = max(1, state.count)
+        var headroomShift = 0
+        var pow2 = 1
+        while pow2 < voiceCount {
+            pow2 <<= 1
+            headroomShift += 1
+        }
 
         while remainingFrames > 0 {
             let frames = min(remainingFrames, UInt32(bufSize))
 
             for i in 0..<Int(frames) {
                 let frameIndex = renderedFrames + UInt32(i)
-                var mix: Float = 0.0
+                var mix: Int32 = 0
 
                 for v in 0..<state.count {
-                    // Voice is silent after its own duration ends
                     if frameIndex < state[v].totalFrames {
-                        mix += state[v].sample(at: frameIndex)
+                        // nextSample is mutating — advances phaseAccum
+                        let s = state[v].nextSample(frameIndex: frameIndex)
+                        mix += Int32(s * 32767.0)
                     }
                 }
 
-                mix *= voiceScale  // perceptual headroom
-
-                let pcm = Int16(softClip(mix) * 32767.0)
-                buf[Int(i) * 2] = pcm
-                buf[Int(i) * 2 + 1] = pcm
+                let scaled = mix >> headroomShift
+                let clamped = Int16(clamping: scaled)
+                pcmBuf[i * 2] = clamped
+                pcmBuf[i * 2 + 1] = clamped
             }
 
-            guard i2s_hw_write(buf.baseAddress!, Int16(frames * 2)) else {
+            guard i2s_hw_write(pcmBuf.baseAddress!, UInt32(frames * 2)) else {
                 throw I2SError.writeFailed
             }
 
@@ -84,7 +92,7 @@ struct I2SGenerator: Synthesiser {
     func playChord(_ notes: [Note]) throws(I2SError) {
         let voices = notes.map { note in
             Voice(
-                frequencyHz: note.frequency,
+                frequencyHz: Float(note.frequency),
                 durationMs: note.duration.milliseconds(bpm: bpm),
                 gain: 1.0
             )
@@ -92,12 +100,4 @@ struct I2SGenerator: Synthesiser {
         try playChord(voices)
     }
 
-    // Soft clip via tanh — smooth, no discontinuity
-    // tanh(x) naturally saturates toward ±1.0
-    private func softClip(_ x: Float) -> Float {
-        // Fast tanh approximation valid for |x| < 4
-        // For |x| >= 4, output is ±1.0 anyway
-        let x2 = x * x
-        return x * (27.0 + x2) / (27.0 + 9.0 * x2)
-    }
 }

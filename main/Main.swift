@@ -6,17 +6,23 @@ func app_main() {
 
     // playSomething(synth: synth)
 
-    try! synth.playChord([
-        Note(.c, octave: 4, duration: Duration(.whole)),
-        Note(.e, octave: 4, duration: Duration(.whole)),
-        Note(.g, octave: 4, duration: Duration(.whole)),
-    ])
+    while true {
+        try! synth.playChord([
+            Note(.c, octave: 4, duration: Duration(.whole)),
+            Note(.e, octave: 4, duration: Duration(.whole)),
+            Note(.g, octave: 4, duration: Duration(.whole)),
+            Note(.b, .flat, octave: 4, duration: Duration(.whole)),
+            Note(.c, octave: 5, duration: Duration(.whole)),
+        ])
 
-    try! synth.playChord([
-        Note(.c, octave: 3, duration: Duration(.whole)),
-        Note(.e, octave: 3, duration: Duration(.whole)),
-        Note(.g, octave: 3, duration: Duration(.whole)),
-    ])
+        try! synth.playChord([
+            Note(.c, octave: 5, duration: Duration(.whole)),
+            Note(.e, octave: 5, duration: Duration(.whole)),
+            Note(.g, octave: 5, duration: Duration(.whole)),
+            Note(.b, .flat, octave: 5, duration: Duration(.whole)),
+            Note(.c, octave: 6, duration: Duration(.whole)),
+        ])
+    }
 }
 
 func playSomething(synth: I2SGenerator) {

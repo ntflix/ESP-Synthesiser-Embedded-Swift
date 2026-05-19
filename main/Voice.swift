@@ -1,51 +1,56 @@
 struct Voice {
-    var frequencyHz: UInt32
+    var frequencyHz: Float
     var durationMs: UInt32
     var gain: Float
-    var phase: Float = 0.0
 
+    // Runtime state — set by prepare()
     var totalFrames: UInt32 = 0
     var attackFrames: UInt32 = 0
     var releaseFrames: UInt32 = 0
-    var step: Float = 0.0
+    private(set) var phaseAccum: UInt32 = 0
+    private(set) var phaseInc: UInt32 = 0
+    private var voiceGain: Float = 0
+
+    public init(frequencyHz: Float, durationMs: UInt32, gain: Float) {
+        self.frequencyHz = frequencyHz
+        self.durationMs = durationMs
+        self.gain = gain
+    }
 
     mutating func prepare(sampleRate: UInt32) {
-        self.step = Float.pi * 2.0 * Float(frequencyHz) / Float(sampleRate)
         totalFrames = (sampleRate * durationMs) / 1000
-        attackFrames = (sampleRate * 8) / 1000 + 1
-        releaseFrames = (sampleRate * 24) / 1000 + 1
+        attackFrames = max(1, (sampleRate * 8) / 1000)
+        releaseFrames = max(1, (sampleRate * 24) / 1000)
         if attackFrames + releaseFrames >= totalFrames {
             attackFrames = totalFrames / 4 + 1
             releaseFrames = totalFrames / 4 + 1
         }
+        phaseAccum = 0
+        phaseInc = wavetable_phase_inc(frequencyHz, sampleRate)
+        voiceGain = max(0, min(gain, 1.0)) * 0.6
     }
 
-    // Returns the float sample for this frame index, envelope applied
-    mutating func sample(at frameIndex: UInt32) -> Float {
+    // Returns a float in [-voiceGain, +voiceGain]; called once per sample
+    mutating func nextSample(frameIndex: UInt32) -> Float {
+        let raw = wavetable_lookup(phaseAccum)  // C shim call
+        phaseAccum &+= phaseInc  // wrapping add = free modulo
+
+        let env = envelope(at: frameIndex)
+        return raw * voiceGain * env
+    }
+
+    private func envelope(at frameIndex: UInt32) -> Float {
         var env: Float = 1.0
         if frameIndex < attackFrames {
-            env = cosineRampIn(idx: frameIndex, len: attackFrames)
+            let t = Float(frameIndex) / Float(attackFrames - 1)
+            env = 0.5 - 0.5 * c_cosf(Float.pi * t)
         }
         if totalFrames > releaseFrames, frameIndex >= totalFrames - releaseFrames {
             let idxFromEnd = (totalFrames - 1) - frameIndex
-            let rel = cosineRampOut(idxFromEnd: idxFromEnd, len: releaseFrames)
+            let t = Float(idxFromEnd) / Float(releaseFrames - 1)
+            let rel = 0.5 + 0.5 * c_cosf(Float.pi * t)
             if rel < env { env = rel }
         }
-        let s = c_sinf(phase) * gain * env
-        phase += self.step
-        if phase >= Float.pi * 2.0 { phase -= Float.pi * 2.0 }
-        return s
-    }
-
-    private func cosineRampIn(idx: UInt32, len: UInt32) -> Float {
-        guard len > 1 else { return 1.0 }
-        let t = Float(idx) / Float(len - 1)
-        return 0.5 - 0.5 * c_cosf(Float.pi * t)
-    }
-
-    private func cosineRampOut(idxFromEnd: UInt32, len: UInt32) -> Float {
-        guard len > 1 else { return 0.0 }
-        let t = Float(idxFromEnd) / Float(len - 1)
-        return 0.5 - 0.5 * c_cosf(Float.pi * t)
+        return env
     }
 }
