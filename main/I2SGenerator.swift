@@ -10,8 +10,8 @@ struct I2SGenerator: Synthesiser {
     }
 
     @discardableResult
-    func initialise() -> Bool {
-        return i2s_hw_init(sampleRate)
+    func initialise() {
+        i2s_hw_init(sampleRate)
     }
 
     func start() { _ = i2s_hw_start() }

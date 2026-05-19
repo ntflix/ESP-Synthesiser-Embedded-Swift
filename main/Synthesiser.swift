@@ -6,7 +6,7 @@ protocol Synthesiser {
     init(sampleRate: UInt32, bpm: UInt32, gain: Float)
 
     @discardableResult
-    func initialise() -> Bool
+    func initialise()
     func start()
     func stop()
     func deinitialise()
