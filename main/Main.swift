@@ -1,6 +1,6 @@
 @_cdecl("app_main")
 func app_main() {
-    let synth = I2SGenerator(gain: 1.0)
+    let synth = I2SGenerator(gain: 0.5)
     synth.initialise()
     synth.start()
 
@@ -71,11 +71,10 @@ func playSomething(synth: I2SGenerator) {
     ]
 
     while true {
-        // Build two independent timelines starting at frame 0
-        let melodyVoices = schedule(notes, bpm: synth.bpm, sampleRate: synth.sampleRate)
-        let bassVoices = schedule(bassline, bpm: synth.bpm, sampleRate: synth.sampleRate)
-
-        // Merge — both start at t=0, play in parallel
+        let melodyVoices = schedule(
+            notes, bpm: synth.bpm, sampleRate: synth.sampleRate, gain: synth.gain)
+        let bassVoices = schedule(
+            bassline, bpm: synth.bpm, sampleRate: synth.sampleRate, gain: synth.gain)
         let timeline = melodyVoices + bassVoices
 
         try! synth.playTimeline(timeline)

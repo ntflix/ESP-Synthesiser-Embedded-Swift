@@ -27,7 +27,7 @@ struct Voice {
         }
         phaseAccum = 0
         phaseInc = wavetable_phase_inc(frequencyHz, sampleRate)
-        voiceGain = max(0, min(gain, 1.0)) * 0.6
+        voiceGain = max(0, min(gain, 1.0))
     }
 
     // Returns a float in [-voiceGain, +voiceGain]; called once per sample

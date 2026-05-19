@@ -5,27 +5,25 @@ struct ScheduledVoice {
 }
 
 func schedule(
-    _ notes: [Note],
-    bpm: UInt32,
-    sampleRate: UInt32,
+    _ notes: [Note], bpm: UInt32, sampleRate: UInt32,
+    gain: Float = 1.0,
     offsetFrames: UInt32 = 0
 ) -> [ScheduledVoice] {
-    var cursor = offsetFrames
+    var cursor: UInt32 = offsetFrames
     var scheduled: [ScheduledVoice] = []
-    scheduled.reserveCapacity(notes.count)
 
     for note in notes {
         let durationMs = note.duration.milliseconds(bpm: bpm)
         let totalFrames = (sampleRate * durationMs) / 1000
         guard totalFrames > 0 else {
-            cursor &+= totalFrames
+            cursor += totalFrames
             continue
         }
 
         var voice = Voice(
             frequencyHz: Float(note.frequency),
             durationMs: durationMs,
-            gain: 1.0
+            gain: gain
         )
         voice.prepare(sampleRate: sampleRate)
 
@@ -33,10 +31,9 @@ func schedule(
             ScheduledVoice(
                 voice: voice,
                 startFrame: cursor,
-                endFrame: cursor &+ totalFrames
+                endFrame: cursor + totalFrames
             ))
-        cursor &+= totalFrames
+        cursor += totalFrames
     }
-
     return scheduled
 }

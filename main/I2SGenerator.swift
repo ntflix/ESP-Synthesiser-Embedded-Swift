@@ -3,7 +3,7 @@ struct I2SGenerator: Synthesiser {
     var bpm: UInt32
     var gain: Float
 
-    init(sampleRate: UInt32 = 44100, bpm: UInt32 = 120, gain: Float = 0.5) {
+    init(sampleRate: UInt32 = 44100, bpm: UInt32 = 120, gain: Float = 0.8) {
         self.sampleRate = sampleRate
         self.bpm = bpm
         self.gain = gain
@@ -92,19 +92,15 @@ struct I2SGenerator: Synthesiser {
     func playTimeline(_ scheduledVoices: [ScheduledVoice]) throws(I2SError) {
         guard !scheduledVoices.isEmpty else { return }
 
-        let masterFrames = scheduledVoices.map { $0.endFrame }.max() ?? 0
+        var state = scheduledVoices
+        let masterFrames = state.map { $0.endFrame }.max() ?? 0
         guard masterFrames > 0 else { return }
 
-        var state = scheduledVoices
-        let bufSize = 256
-        let voiceCount = max(1, state.count)
-        var headroomShift = 0
-        var pow2 = 1
-        while pow2 < voiceCount {
-            pow2 <<= 1
-            headroomShift += 1
-        }
+        // Normalise by peak simultaneous voices — applied as float before Int16 conversion
+        let peak = Float(maxSimultaneousVoices(state))
+        let normScale = 1.0 / peak  // e.g. 0.5 for 2 simultaneous voices
 
+        let bufSize = 256
         var remainingFrames = masterFrames
         var renderedFrames: UInt32 = 0
 
@@ -116,20 +112,17 @@ struct I2SGenerator: Synthesiser {
 
             for i in 0..<Int(frames) {
                 let frameIndex = renderedFrames + UInt32(i)
-                var mix: Int32 = 0
+                var mix: Float = 0.0  // ← Float mix bus, not Int32
 
                 for v in 0..<state.count {
                     let sv = state[v]
-                    guard frameIndex >= sv.startFrame, frameIndex < sv.endFrame else {
-                        continue
-                    }
-
+                    guard frameIndex >= sv.startFrame, frameIndex < sv.endFrame else { continue }
                     let localFrame = frameIndex - sv.startFrame
-                    let sample = state[v].voice.nextSample(frameIndex: localFrame)
-                    mix += Int32(sample * 32767.0)
+                    mix += state[v].voice.nextSample(frameIndex: localFrame)
                 }
 
-                let clamped = Int16(clamping: mix >> headroomShift)
+                // Scale, then convert — no bit-shift rounding artifacts
+                let clamped = Int16(clamping: Int32(mix * normScale * 32767.0))
                 pcmBuf[i * 2] = clamped
                 pcmBuf[i * 2 + 1] = clamped
             }
@@ -141,6 +134,33 @@ struct I2SGenerator: Synthesiser {
             remainingFrames -= frames
             renderedFrames += frames
         }
+    }
+
+    private func maxSimultaneousVoices(_ scheduled: [ScheduledVoice]) -> Int {
+        guard !scheduled.isEmpty else { return 1 }
+
+        var events: [(frame: UInt32, delta: Int)] = []
+        events.reserveCapacity(scheduled.count * 2)
+        for sv in scheduled {
+            events.append((sv.startFrame, 1))
+            events.append((sv.endFrame, -1))
+        }
+
+        events.sort {
+            if $0.frame == $1.frame {
+                return $0.delta < $1.delta
+            }
+            return $0.frame < $1.frame
+        }
+
+        var peak = 0
+        var current = 0
+        for e in events {
+            current += e.delta
+            if current > peak { peak = current }
+        }
+
+        return max(1, peak)
     }
 
     // Convenience: play a chord from Notes
