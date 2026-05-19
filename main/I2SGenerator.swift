@@ -88,6 +88,61 @@ struct I2SGenerator: Synthesiser {
         }
     }
 
+    // Play scheduled voices that start at arbitrary offsets on a shared timeline.
+    func playTimeline(_ scheduledVoices: [ScheduledVoice]) throws(I2SError) {
+        guard !scheduledVoices.isEmpty else { return }
+
+        let masterFrames = scheduledVoices.map { $0.endFrame }.max() ?? 0
+        guard masterFrames > 0 else { return }
+
+        var state = scheduledVoices
+        let bufSize = 256
+        let voiceCount = max(1, state.count)
+        var headroomShift = 0
+        var pow2 = 1
+        while pow2 < voiceCount {
+            pow2 <<= 1
+            headroomShift += 1
+        }
+
+        var remainingFrames = masterFrames
+        var renderedFrames: UInt32 = 0
+
+        let pcmBuf = UnsafeMutableBufferPointer<Int16>.allocate(capacity: bufSize * 2)
+        defer { pcmBuf.deallocate() }
+
+        while remainingFrames > 0 {
+            let frames = min(remainingFrames, UInt32(bufSize))
+
+            for i in 0..<Int(frames) {
+                let frameIndex = renderedFrames + UInt32(i)
+                var mix: Int32 = 0
+
+                for v in 0..<state.count {
+                    let sv = state[v]
+                    guard frameIndex >= sv.startFrame, frameIndex < sv.endFrame else {
+                        continue
+                    }
+
+                    let localFrame = frameIndex - sv.startFrame
+                    let sample = state[v].voice.nextSample(frameIndex: localFrame)
+                    mix += Int32(sample * 32767.0)
+                }
+
+                let clamped = Int16(clamping: mix >> headroomShift)
+                pcmBuf[i * 2] = clamped
+                pcmBuf[i * 2 + 1] = clamped
+            }
+
+            guard i2s_hw_write(pcmBuf.baseAddress!, UInt32(frames * 2)) else {
+                throw I2SError.writeFailed
+            }
+
+            remainingFrames -= frames
+            renderedFrames += frames
+        }
+    }
+
     // Convenience: play a chord from Notes
     func playChord(_ notes: [Note]) throws(I2SError) {
         let voices = notes.map { note in
