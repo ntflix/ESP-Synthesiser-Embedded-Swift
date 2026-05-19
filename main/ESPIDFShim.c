@@ -135,3 +135,4 @@ bool i2s_hw_play_tone(uint32_t frequency_hz, uint32_t duration_ms, float gain) {
 bool i2s_hw_start(void) { return true; }
 
 float c_sinf(float x) { return sinf(x); }
+float c_cosf(float x) { return cosf(x); }

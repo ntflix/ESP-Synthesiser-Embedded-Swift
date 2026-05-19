@@ -30,5 +30,5 @@ void swift_task_start(void (*task_fn)(void *), const char *name,
 // Embedded file
 const uint8_t *midi_get_embedded_file(uint32_t *out_length);
 
-// sinf shim — Embedded Swift can't call sinf directly
 float c_sinf(float x);
+float c_cosf(float x);

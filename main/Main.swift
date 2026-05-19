@@ -4,7 +4,19 @@ func app_main() {
     synth.initialise()
     synth.start()
 
-    playSomething(synth: synth)
+    // playSomething(synth: synth)
+
+    try! synth.playChord([
+        Note(.c, octave: 4, duration: Duration(.whole)),
+        Note(.e, octave: 4, duration: Duration(.whole)),
+        Note(.g, octave: 4, duration: Duration(.whole)),
+    ])
+
+    try! synth.playChord([
+        Note(.c, octave: 3, duration: Duration(.whole)),
+        Note(.e, octave: 3, duration: Duration(.whole)),
+        Note(.g, octave: 3, duration: Duration(.whole)),
+    ])
 }
 
 func playSomething(synth: I2SGenerator) {
@@ -57,7 +69,7 @@ func playSomething(synth: I2SGenerator) {
     ]
 
     while true {
-        synth.play(notes)
-        synth.play(bassline)
+        try! synth.play(notes)
+        try! synth.play(bassline)
     }
 }
